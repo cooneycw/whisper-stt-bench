@@ -5,6 +5,7 @@ __pycache__
 tests
 scripts
 docs
-*.md
+CLAUDE.md
+AGENTS.md
 .env*
 .woodpecker
