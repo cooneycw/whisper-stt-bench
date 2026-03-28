@@ -4,7 +4,7 @@ services:
     ports:
       - "${WHISPER_BENCH_PORT:-5000}:5000"
     environment:
-      - WHISPER_BENCH_WHISPER_MODEL=${WHISPER_BENCH_WHISPER_MODEL:-base}
+      - WHISPER_BENCH_WHISPER_MODEL=${WHISPER_BENCH_WHISPER_MODEL:-distil-large-v3}
       - WHISPER_BENCH_LOG_LEVEL=${WHISPER_BENCH_LOG_LEVEL:-INFO}
     volumes:
       - ./.runtime/corpus:/app/corpus:ro

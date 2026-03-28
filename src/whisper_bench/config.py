@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Whisper model
-    whisper_model: str = "base"
+    whisper_model: str = "distil-large-v3"
     whisper_device: str = "auto"  # auto | cuda | cpu
     whisper_compute_type: str = "auto"  # auto | float16 | int8 | float32
 
