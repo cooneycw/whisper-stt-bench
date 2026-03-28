@@ -1,0 +1,2 @@
+ignored:
+  - DL3008  # apt pin versions — impractical on nvidia/cuda base image
