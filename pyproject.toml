@@ -1,0 +1,51 @@
+[project]
+name = "whisper-stt-bench"
+version = "0.1.0"
+description = "GPU Whisper benchmark service — compare self-hosted Whisper vs AWS Transcribe"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "faster-whisper>=1.1",
+    "numpy>=1.26",
+    "jiwer>=3.1",
+    "python-multipart>=0.0.18",
+    "orjson>=3.10",
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.9",
+]
+bench = [
+    "boto3>=1.38",
+    "aws-sdk-transcribe-streaming==0.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/whisper_bench"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "gpu: marks tests that require GPU access",
+    "benchmark: marks long-running benchmark tests",
+    "live: marks tests that require live external services",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "W"]

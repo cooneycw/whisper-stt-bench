@@ -1,0 +1,10 @@
+.git
+.runtime
+.venv
+__pycache__
+tests
+scripts
+docs
+*.md
+.env*
+.woodpecker

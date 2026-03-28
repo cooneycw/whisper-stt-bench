@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Runtime artifacts
+.runtime/
+*.env
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# uv
+.python-version

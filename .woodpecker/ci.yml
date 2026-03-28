@@ -1,0 +1,76 @@
+when:
+  - event: [push, pull_request]
+
+cancel_previous_pipeline_events: ['pull_request']
+
+steps:
+  # --- Stage 1: Fast checks (parallel) ---
+  lint:
+    image: python:3.12-slim-bookworm
+    commands:
+      - pip install uv
+      - uv sync --extra dev
+      - uv run ruff check .
+
+  secret-scan:
+    image: zricethezav/gitleaks:latest
+    commands:
+      - gitleaks detect --source . -v
+
+  dockerfile-lint:
+    image: hadolint/hadolint:latest-alpine
+    commands:
+      - hadolint Dockerfile
+
+  # --- Stage 2: Tests (after lint) ---
+  test:
+    image: python:3.12-slim-bookworm
+    depends_on: [lint]
+    commands:
+      - pip install uv
+      - uv sync --extra dev
+      - uv run pytest -m "not gpu and not benchmark and not live" -q
+
+  typecheck:
+    image: python:3.12-slim-bookworm
+    depends_on: [lint]
+    commands:
+      - pip install uv
+      - uv sync --extra dev
+      - uv run python -m compileall src tests scripts
+
+  dependency-audit:
+    image: python:3.12-slim-bookworm
+    depends_on: [lint]
+    failure: ignore
+    commands:
+      - pip install uv pip-audit
+      - uv sync --extra dev
+      - uv run pip-audit
+
+  # --- Stage 3: Deploy (main only) ---
+  deploy-remote:
+    image: python:3.12-slim-bookworm
+    depends_on: [test, typecheck]
+    when:
+      - branch: main
+        event: push
+    environment:
+      SSH_HOST: 192.168.7.61
+      SSH_USER:
+        from_secret: gpu_ssh_user
+      SSH_KEY:
+        from_secret: gpu_ssh_key
+    commands:
+      - apt-get update && apt-get install -y openssh-client
+      - mkdir -p ~/.ssh
+      - echo "$SSH_KEY" > ~/.ssh/id_ed25519
+      - chmod 600 ~/.ssh/id_ed25519
+      - ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts 2>/dev/null
+      - |
+        ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST '
+          cd ~/whisper-stt-bench &&
+          git pull origin main &&
+          docker compose down &&
+          docker compose up --build -d
+        '
