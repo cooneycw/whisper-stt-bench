@@ -1,4 +1,5 @@
 .git
+# Security: .runtime may contain env files with secrets (bearer tokens, AWS agent tokens)
 .runtime
 .venv
 __pycache__
