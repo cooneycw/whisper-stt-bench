@@ -42,6 +42,16 @@ in the correct order. The standalone `make deploy` targets here are still
 available for debugging or CI, but the preferred workflow is through
 voice-bot-acs.
 
+### Multi-Repo Deployment Matrix
+
+| Repository | Woodpecker label | Deployed via | Secrets agent |
+|---|---|---|---|
+| whisper-stt-bench | `deploy-host=gpu-vm` | voice-bot-acs `deploy-all` | Yes |
+| personas-service | `deploy-host=proxVMvoice18` | voice-bot-acs `deploy-all` | Yes |
+| voice-bot-acs | `deploy-host=proxVMvoice18` | self (`deploy-all`) | Yes |
+
+**Deploy order:** whisper-stt-bench -> personas-service -> voice-bot-acs
+
 ## Docker / Deployment
 
 ```bash
