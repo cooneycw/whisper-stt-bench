@@ -50,6 +50,18 @@ make bench-report  # Show latest results
 Corpus source: `voice-bot-acs/.runtime/local-talk-artifacts/`
 Prepare with: `python scripts/prepare_corpus.py --source <path>`
 
+## Authentication
+
+Bearer token auth protects `/v1/transcribe`. Configure via:
+- `WHISPER_BENCH_BEARER_TOKEN` — set token directly, or
+- `WHISPER_BENCH_AWS_SECRET_NAME` — fetch from AWS Secrets Manager (key: `whisper_bearer_token`)
+
+When no token is configured, the endpoint is unprotected (dev mode).
+
+```bash
+make smoke-live-components  # Verify auth end-to-end against running service
+```
+
 ## Security Scanning
 
 ```bash

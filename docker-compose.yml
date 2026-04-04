@@ -6,6 +6,9 @@ services:
     environment:
       - WHISPER_BENCH_WHISPER_MODEL=${WHISPER_BENCH_WHISPER_MODEL:-distil-large-v3}
       - WHISPER_BENCH_LOG_LEVEL=${WHISPER_BENCH_LOG_LEVEL:-INFO}
+      - WHISPER_BENCH_BEARER_TOKEN=${WHISPER_BENCH_BEARER_TOKEN:-}
+      - WHISPER_BENCH_AWS_SECRET_NAME=${WHISPER_BENCH_AWS_SECRET_NAME:-}
+      - WHISPER_BENCH_AWS_REGION=${WHISPER_BENCH_AWS_REGION:-us-east-1}
     volumes:
       - ./.runtime/corpus:/app/corpus:ro
       - ./.runtime/results:/app/results
