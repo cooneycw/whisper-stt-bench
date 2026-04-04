@@ -40,7 +40,16 @@ services:
       - AWS_TOKEN_FILE_PATH=/var/run/awssmatoken
     volumes:
       - awssmatoken:/var/run
-      - ${HOME}/.aws:/root/.aws:ro
+      - ${AWS_SHARED_CREDENTIALS_FILE:-${HOME}/.aws}:/root/.aws:ro
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - >-
+        if [ -f /root/.aws/credentials ]; then
+        export AWS_ACCESS_KEY_ID="$$(awk -F' *= *' '/^aws_access_key_id/{print $$2}' /root/.aws/credentials)";
+        export AWS_SECRET_ACCESS_KEY="$$(awk -F' *= *' '/^aws_secret_access_key/{print $$2}' /root/.aws/credentials)";
+        fi;
+        exec /usr/local/bin/secrets-manager-agent
     restart: unless-stopped
     profiles: ["secrets"]
 
