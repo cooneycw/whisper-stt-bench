@@ -45,6 +45,6 @@ steps:
     depends_on: [lint]
     failure: ignore
     commands:
-      - pip install uv pip-audit
+      - pip install uv
       - uv sync --extra dev
-      - uv run pip-audit
+      - uv run pip-audit --local
