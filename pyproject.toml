@@ -50,3 +50,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "W"]
+
+[dependency-groups]
+dev = [
+    "pip-audit>=2.10.0",
+]
