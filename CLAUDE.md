@@ -12,10 +12,12 @@ GPU Whisper benchmark service — compare self-hosted faster-whisper vs AWS Tran
 ## Project Layout
 
 ```text
-src/whisper_bench/     Application code (server, transcriber, config)
-scripts/               Benchmark runner and corpus preparation
-tests/                 Unit tests (CPU-only by default)
-.woodpecker/           CI/CD pipeline
+src/whisper_bench/              Application code (server, transcriber, config, auth)
+scripts/                        Benchmark runner and corpus preparation
+tests/                          Unit tests (CPU-only by default)
+infra/secrets-manager-agent/    AWS Secrets Manager Agent sidecar Dockerfile
+woodpecker-agent/               Woodpecker CI agent setup for GPU VM
+.woodpecker/                    CI/CD pipelines (ci.yml, deploy-local.yml)
 ```
 
 ## Development Commands
@@ -37,6 +39,8 @@ make docker-build  # Build NVIDIA CUDA-based image
 make docker-up     # Start with GPU access
 make docker-down   # Stop
 make health        # Wait for /health endpoint
+make deploy        # docker-up + health (with secrets sidecar profile)
+make deploy-stub   # docker-up + health (no secrets sidecar)
 ```
 
 ## Benchmark
@@ -72,13 +76,25 @@ make dockerfile-lint   # hadolint
 
 ## CI/CD
 
-Pipeline runs in Woodpecker CI via `.woodpecker/ci.yml`:
-- lint + secret-scan + dockerfile-lint (parallel)
-- test + typecheck + dependency-audit (after lint)
-- deploy-remote (main branch only, SSH to 192.168.7.61)
+Pipeline runs in Woodpecker CI via `.woodpecker/`:
+- **ci.yml**: lint + secret-scan + dockerfile-lint (parallel) -> test + typecheck + dependency-audit
+- **deploy-local.yml**: main-only local Docker deploy, depends on `ci`, pinned to `deploy-host=gpu-vm` agent
 
 ## Deployment Target
 
 - **Host:** 192.168.7.61 (local lab GPU VM)
 - **GPU:** NVIDIA RTX 3080 16GB VRAM
-- **Deploy:** SSH pull + docker compose rebuild
+- **Agent:** Woodpecker agent with label `deploy-host=gpu-vm` (see `woodpecker-agent/`)
+- **Deploy:** Local Docker via Woodpecker agent (no SSH)
+- **Secrets:** AWS Secrets Manager Agent sidecar (`infra/secrets-manager-agent/`)
+
+## Woodpecker Agent (GPU VM)
+
+The `woodpecker-agent/` directory contains the agent setup for the GPU VM.
+This agent serves all three projects on the host: whisper-stt-bench, voice-bot-acs, personas-service.
+
+```bash
+cd woodpecker-agent
+./bootstrap-agent.sh          # Fetch creds from AWS SM + start agent
+docker compose logs -f        # Check agent logs
+```
