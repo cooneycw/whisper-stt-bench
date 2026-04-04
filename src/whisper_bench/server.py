@@ -6,9 +6,10 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, UploadFile
+from fastapi import Depends, FastAPI, UploadFile
 from pydantic import BaseModel
 
+from whisper_bench.auth import load_bearer_token, verify_bearer_token
 from whisper_bench.config import settings
 from whisper_bench.transcriber import ModelInfo, Transcriber, TranscriptionResult
 
@@ -21,6 +22,7 @@ transcriber: Transcriber | None = None
 async def lifespan(app: FastAPI):
     global transcriber
     logging.basicConfig(level=settings.log_level)
+    load_bearer_token()
     logger.info(
         "Loading whisper model=%s device=%s compute=%s",
         settings.whisper_model,
@@ -67,7 +69,7 @@ async def list_models() -> list[ModelInfo]:
     return Transcriber.available_models()
 
 
-@app.post("/v1/transcribe")
+@app.post("/v1/transcribe", dependencies=[Depends(verify_bearer_token)])
 async def transcribe(file: UploadFile) -> TranscribeResponse:
     assert transcriber is not None, "Model not loaded"
     audio_bytes = await file.read()

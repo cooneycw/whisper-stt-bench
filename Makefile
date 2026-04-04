@@ -2,6 +2,7 @@
        docker-build docker-up docker-down docker-clean docker-logs \
        health bench bench-quick bench-report \
        secret-scan dep-audit dockerfile-lint \
+       smoke-live-components \
        clean
 
 # --- Dependencies ---
@@ -91,6 +92,26 @@ dockerfile-lint:
 	else \
 		echo "hadolint not installed — skipping"; \
 	fi
+
+# --- Smoke (live) ---
+smoke-live-components:
+	@echo "Smoke-testing bearer auth on live Whisper endpoint..."
+	@WHISPER_HOST=$${WHISPER_HOST:-http://localhost:5000}; \
+	TOKEN=$${WHISPER_BENCH_BEARER_TOKEN:-}; \
+	echo "1) Unauthenticated request → expect 401"; \
+	STATUS=$$(curl -s -o /dev/null -w '%{http_code}' "$$WHISPER_HOST/v1/transcribe" -X POST -F "file=@/dev/null"); \
+	if [ "$$STATUS" = "401" ]; then echo "   PASS ($$STATUS)"; else echo "   FAIL ($$STATUS)"; exit 1; fi; \
+	echo "2) Health endpoint → expect 200 (no auth required)"; \
+	STATUS=$$(curl -s -o /dev/null -w '%{http_code}' "$$WHISPER_HOST/health"); \
+	if [ "$$STATUS" = "200" ]; then echo "   PASS ($$STATUS)"; else echo "   FAIL ($$STATUS)"; exit 1; fi; \
+	if [ -n "$$TOKEN" ]; then \
+		echo "3) Authenticated request → expect 200 or 422"; \
+		STATUS=$$(curl -s -o /dev/null -w '%{http_code}' "$$WHISPER_HOST/v1/transcribe" -X POST -F "file=@/dev/null" -H "Authorization: Bearer $$TOKEN"); \
+		if [ "$$STATUS" = "200" ] || [ "$$STATUS" = "422" ]; then echo "   PASS ($$STATUS)"; else echo "   FAIL ($$STATUS)"; exit 1; fi; \
+	else \
+		echo "3) Skipped — WHISPER_BENCH_BEARER_TOKEN not set"; \
+	fi; \
+	echo "Smoke test complete."
 
 # --- Cleanup ---
 clean:

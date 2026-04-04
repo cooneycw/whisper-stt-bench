@@ -27,5 +27,10 @@ class Settings(BaseSettings):
     # Results
     results_dir: str = ".runtime/results"
 
+    # Auth
+    bearer_token: str = ""  # set directly or fetched from Secrets Manager
+    aws_secret_name: str = ""  # AWS Secrets Manager secret name
+    aws_region: str = "us-east-1"
+
 
 settings = Settings()
