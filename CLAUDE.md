@@ -32,6 +32,16 @@ make format        # Auto-format with ruff
 make verify        # Full quality gate (lint + test + typecheck)
 ```
 
+## Deployment Gateway
+
+**voice-bot-acs is the master deployment entry point for the full stack.**
+Do not deploy whisper-stt-bench in isolation during normal operations. Instead,
+run `make deploy-all` (or `make deploy-all-stub`) from the `voice-bot-acs`
+directory — it chains whisper-stt-bench, personas-service, and voice-bot-acs
+in the correct order. The standalone `make deploy` targets here are still
+available for debugging or CI, but the preferred workflow is through
+voice-bot-acs.
+
 ## Docker / Deployment
 
 ```bash
