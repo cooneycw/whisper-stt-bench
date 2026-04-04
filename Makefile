@@ -46,15 +46,9 @@ docker-logs:
 	docker compose logs -f
 
 health:
-	@echo "Waiting for /health..."
-	@for i in $$(seq 1 30); do \
-		if curl -sf http://localhost:5000/health > /dev/null 2>&1; then \
-			echo "Service healthy"; \
-			exit 0; \
-		fi; \
-		sleep 2; \
-	done; \
-	echo "Health check timed out"; exit 1
+	@bash scripts/wait-for-health.sh \
+		"http://localhost:5000/health" \
+		--max-wait 120
 
 # --- Deploy ---
 deploy: docker-up health
