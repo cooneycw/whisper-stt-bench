@@ -12,6 +12,7 @@ services:
     volumes:
       - ./.runtime/corpus:/app/corpus:ro
       - ./.runtime/results:/app/results
+      - awssmatoken:/var/run:ro
     deploy:
       resources:
         reservations:
@@ -26,3 +27,22 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  whisper-secrets-agent:
+    build:
+      context: ./infra/secrets-manager-agent
+      args:
+        AWS_SM_AGENT_VERSION: ${AWS_SM_AGENT_VERSION:-v1.2.1}
+    container_name: whisper-secrets-agent
+    network_mode: "service:whisper-bench"
+    environment:
+      - AWS_REGION=${WHISPER_BENCH_AWS_REGION:-us-east-1}
+      - AWS_TOKEN_FILE_PATH=/var/run/awssmatoken
+    volumes:
+      - awssmatoken:/var/run
+      - ${HOME}/.aws:/root/.aws:ro
+    restart: unless-stopped
+    profiles: ["secrets"]
+
+volumes:
+  awssmatoken:

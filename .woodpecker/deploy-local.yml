@@ -1,0 +1,48 @@
+when:
+  - event: push
+    branch: main
+
+labels:
+  platform: linux/amd64
+  deploy-host: gpu-vm
+
+depends_on:
+  - ci
+
+steps:
+  deploy-local:
+    image: docker:27-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: aws_secret_access_key
+    commands:
+      - apk add --no-cache bash curl git make python3 >/dev/null
+      - |
+        # Stale-commit guard — skip if a newer commit has landed on main
+        LATEST_SHA="$(git fetch origin main >/dev/null 2>&1 && git rev-parse origin/main)"
+        CURRENT_SHA="${CI_COMMIT_SHA:-$(git rev-parse HEAD)}"
+        if [ "$CURRENT_SHA" != "$LATEST_SHA" ]; then
+          echo "Skipping deploy for stale commit $CURRENT_SHA; latest main is $LATEST_SHA"
+          exit 0
+        fi
+
+        COMPOSE_PROJECT_NAME=whisper-stt-bench \
+        docker compose down || true
+
+        COMPOSE_PROJECT_NAME=whisper-stt-bench \
+        docker compose up --build -d
+
+        echo "Waiting for /health..."
+        for i in $(seq 1 30); do
+          if curl -sf http://localhost:5000/health > /dev/null 2>&1; then
+            echo "Service healthy"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "Health check timed out"
+        exit 1

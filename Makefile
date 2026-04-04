@@ -1,6 +1,7 @@
 .PHONY: install dev lint format test typecheck verify \
        docker-build docker-up docker-down docker-clean docker-logs \
-       health bench bench-quick bench-report \
+       health deploy deploy-stub \
+       bench bench-quick bench-report \
        secret-scan dep-audit dockerfile-lint \
        smoke-live-components \
        clean
@@ -54,6 +55,13 @@ health:
 		sleep 2; \
 	done; \
 	echo "Health check timed out"; exit 1
+
+# --- Deploy ---
+deploy: docker-up health
+	@echo "Deploy (with secrets sidecar) complete."
+
+deploy-stub: docker-up health
+	@echo "Deploy (stub, no secrets sidecar) complete."
 
 # --- Benchmark ---
 bench:
