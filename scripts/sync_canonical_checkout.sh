@@ -10,42 +10,45 @@ fi
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 HOST_PROJECTS_ROOT="$(dirname "$HOST_CANONICAL_WORKSPACE")"
 NETRC_CONTENT=""
+NETRC_HOST_PATH=""
+GIT_NETRC_ARGS=()
 
 for p in /root/.netrc "$HOME/.netrc"; do
   if [ -f "$p" ]; then
     NETRC_CONTENT="$(cat "$p")"
     echo "Found .netrc at $p"
+    NETRC_HOST_PATH="$HOST_PROJECTS_ROOT/.ci-netrc-$$"
+    GIT_NETRC_ARGS=(-v "$NETRC_HOST_PATH:/root/.netrc:ro")
     break
   fi
 done
 
-if [ -z "$NETRC_CONTENT" ]; then
-  echo "FATAL: cannot sync canonical checkout without git credentials" >&2
-  exit 1
-fi
-
-NETRC_HOST_PATH="$HOST_PROJECTS_ROOT/.ci-netrc-$$"
-
 cleanup() {
-  docker run --rm \
-    -v "$HOST_PROJECTS_ROOT:$HOST_PROJECTS_ROOT" \
-    --entrypoint sh alpine -c "rm -f '$NETRC_HOST_PATH'" >/dev/null 2>&1 || true
+  if [ -n "$NETRC_HOST_PATH" ]; then
+    docker run --rm \
+      -v "$HOST_PROJECTS_ROOT:$HOST_PROJECTS_ROOT" \
+      --entrypoint sh alpine -c "rm -f '$NETRC_HOST_PATH'" >/dev/null 2>&1 || true
+  fi
 }
 
 trap cleanup EXIT
 
-docker run --rm \
-  -v "$HOST_PROJECTS_ROOT:$HOST_PROJECTS_ROOT" \
-  -e NETRC_CONTENT="$NETRC_CONTENT" \
-  -e NETRC_PATH="$NETRC_HOST_PATH" \
-  --entrypoint sh alpine -c '
-    printf "%s\n" "$NETRC_CONTENT" > "$NETRC_PATH"
-    chmod 600 "$NETRC_PATH"
-  '
+if [ -n "$NETRC_CONTENT" ]; then
+  docker run --rm \
+    -v "$HOST_PROJECTS_ROOT:$HOST_PROJECTS_ROOT" \
+    -e NETRC_CONTENT="$NETRC_CONTENT" \
+    -e NETRC_PATH="$NETRC_HOST_PATH" \
+    --entrypoint sh alpine -c '
+      printf "%s\n" "$NETRC_CONTENT" > "$NETRC_PATH"
+      chmod 600 "$NETRC_PATH"
+    '
+else
+  echo "No .netrc found; attempting anonymous git fetch from origin"
+fi
 
 docker run --rm \
   -v "$HOST_PROJECTS_ROOT:$HOST_PROJECTS_ROOT" \
-  -v "$NETRC_HOST_PATH:/root/.netrc:ro" \
+  "${GIT_NETRC_ARGS[@]}" \
   -w "$HOST_CANONICAL_WORKSPACE" \
   -e DEPLOY_SHA="$DEPLOY_SHA" \
   -e DEPLOY_BRANCH="$DEPLOY_BRANCH" \
