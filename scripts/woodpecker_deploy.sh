@@ -18,6 +18,7 @@ deploy_lock_acquire
 trap deploy_lock_release EXIT
 
 export HOST_CANONICAL_WORKSPACE="${WHISPER_STT_BENCH_HOST_WORKSPACE:-/home/cooneycw/Projects/whisper-stt-bench}"
+export WHISPER_BENCH_AWS_CREDENTIALS_DIR="${WHISPER_BENCH_AWS_CREDENTIALS_DIR:-/home/cooneycw/.aws}"
 export DEPLOY_SHA DEPLOY_BRANCH
 bash scripts/sync_canonical_checkout.sh "$HOST_CANONICAL_WORKSPACE"
 cd "$HOST_CANONICAL_WORKSPACE"

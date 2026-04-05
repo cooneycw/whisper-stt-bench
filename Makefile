@@ -70,7 +70,9 @@ health:
 	exit 1
 
 # --- Deploy ---
-deploy: docker-guard docker-up health
+deploy: docker-guard
+	docker compose --profile secrets up --build --force-recreate --remove-orphans -d
+	@$(MAKE) health
 	@echo "Deploy (with secrets sidecar) complete."
 
 deploy-stub: docker-up health

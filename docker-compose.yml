@@ -9,10 +9,16 @@ services:
       - WHISPER_BENCH_BEARER_TOKEN=${WHISPER_BENCH_BEARER_TOKEN:-}
       - WHISPER_BENCH_AWS_SECRET_NAME=${WHISPER_BENCH_AWS_SECRET_NAME:-}
       - WHISPER_BENCH_AWS_REGION=${WHISPER_BENCH_AWS_REGION:-us-east-1}
+      - AWS_SECRET_SOURCE=${AWS_SECRET_SOURCE:-auto}
+      - AWS_SECRETSMANAGER_AGENT_ENDPOINT=${AWS_SECRETSMANAGER_AGENT_ENDPOINT:-http://127.0.0.1:2773}
+      - AWS_SECRETSMANAGER_AGENT_ATTEMPTS=${AWS_SECRETSMANAGER_AGENT_ATTEMPTS:-30}
+      - AWS_SECRETSMANAGER_AGENT_RETRY_DELAY=${AWS_SECRETSMANAGER_AGENT_RETRY_DELAY:-1}
+      - AWS_TOKEN=file:///run/awssmatoken/token
     volumes:
       - ./.runtime/corpus:/app/corpus:ro
       - ./.runtime/results:/app/results
-      - awssmatoken:/var/run:ro
+      # Do not mount over /var/run; the NVIDIA runtime hook writes there during container startup.
+      - awssmatoken:/run/awssmatoken:ro
     deploy:
       resources:
         reservations:
@@ -36,11 +42,17 @@ services:
     container_name: whisper-secrets-agent
     network_mode: "service:whisper-bench"
     environment:
+      - HOME=/root
       - AWS_REGION=${WHISPER_BENCH_AWS_REGION:-us-east-1}
-      - AWS_TOKEN_FILE_PATH=/var/run/awssmatoken
+      - AWS_DEFAULT_REGION=${WHISPER_BENCH_AWS_REGION:-us-east-1}
+      - AWS_PROFILE=${AWS_PROFILE:-default}
+      - AWS_SDK_LOAD_CONFIG=1
+      - AWS_SHARED_CREDENTIALS_FILE=/root/.aws/credentials
+      - AWS_CONFIG_FILE=/root/.aws/config
+      - AWS_TOKEN_FILE_PATH=/run/awssmatoken/token
     volumes:
-      - awssmatoken:/var/run
-      - ${HOME}/.aws:/root/.aws:ro
+      - awssmatoken:/run/awssmatoken
+      - ${WHISPER_BENCH_AWS_CREDENTIALS_DIR:-/home/cooneycw/.aws}:/root/.aws:ro
     restart: unless-stopped
     profiles: ["secrets"]
 
