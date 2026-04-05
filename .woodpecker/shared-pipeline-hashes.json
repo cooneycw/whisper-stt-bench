@@ -1,9 +1,9 @@
 {
   "version": "2026-04-05.shared-pipeline-contract.v1",
-  "aggregate_sha256": "7fcea34db36446e1e46fd6d7fd94372d2a05b3157c46d0e91d83b54b67d66c23",
+  "aggregate_sha256": "fc13c61c70b7f7483a837bf6eddf4555bc768b0e8f939740239aab9ff411eec3",
   "files": {
     "scripts/deploy_lock.sh": "7a7ffcf4c0e391671a953abcfa80ffa4d689152be28b9c2483abb5808ccf7830",
-    "scripts/sync_canonical_checkout.sh": "cd479d3e849f48378fa64aa20c232c8c32244feb2e6021687bd3bbf888c290e8",
+    "scripts/sync_canonical_checkout.sh": "6a4066ebdf8292abc1f7cb44d5dda33fc4dbebabcb3a73a137a5f2793907be83",
     "scripts/docker_host_guard.sh": "0b2fe08add2e9b23d9c77ffcd9e974a58a3b6237956a2d14d7fdeb3ee6615875",
     "scripts/woodpecker_fanout.py": "a284178f84dffc8c3c1f2092c7ae69b4b99a419aa0c6bde832b24391be2f1800"
   }
