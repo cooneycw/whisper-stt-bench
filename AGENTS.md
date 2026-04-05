@@ -43,6 +43,13 @@ Host ownership:
 The deploy workflow in `.woodpecker/deploy-local.yml` is a production
 deployment for the GPU host. The following safety guards are implemented:
 
+- `ci.yml` intentionally runs on `proxVMvoice18`, not the GPU VM, to keep
+  inference capacity free for Whisper workloads.
+- Because `.woodpecker/deploy-local.yml` has `depends_on: ci`, an outage on
+  `proxVMvoice18` blocks the normal deploy path even though deploy-local itself
+  runs on `deploy-host=gpu-vm`.
+- Break-glass: SSH to `proxVMwhisper43` and run `make deploy` directly from the
+  canonical checkout.
 - **Stale-commit guard** — skips deploy if a newer commit has landed on main
 - **Label pinning** — `deploy-host=gpu-vm` ensures deploy runs on the GPU VM agent
 - **Canonical checkout sync** — updates `/home/cooneycw/Projects/whisper-stt-bench` to the target SHA
