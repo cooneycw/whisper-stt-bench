@@ -7,31 +7,31 @@ labels:
 
 steps:
   shared-pipeline-hash:
-    image: python:3.12-slim-bookworm
+    image: python:3.12.13-slim-bookworm
     commands:
       - python3 scripts/check_shared_pipeline_hashes.py
 
   # --- Stage 1: Fast checks (parallel) ---
   lint:
-    image: python:3.12-slim-bookworm
+    image: python:3.12.13-slim-bookworm
     commands:
       - pip install uv
       - uv sync --extra dev
       - uv run ruff check .
 
   secret-scan:
-    image: zricethezav/gitleaks:latest
+    image: zricethezav/gitleaks:v8.18.4
     commands:
       - gitleaks detect --source . -v
 
   dockerfile-lint:
-    image: hadolint/hadolint:latest-alpine
+    image: hadolint/hadolint:v2.12.0-alpine
     commands:
       - hadolint Dockerfile
 
   # --- Stage 2: Tests (after lint) ---
   test:
-    image: python:3.12-slim-bookworm
+    image: python:3.12.13-slim-bookworm
     depends_on: [lint]
     commands:
       - pip install uv
@@ -39,7 +39,7 @@ steps:
       - uv run pytest -m "not gpu and not benchmark and not live" -q
 
   typecheck:
-    image: python:3.12-slim-bookworm
+    image: python:3.12.13-slim-bookworm
     depends_on: [lint]
     commands:
       - pip install uv
@@ -47,7 +47,7 @@ steps:
       - uv run python -m compileall src tests scripts
 
   dependency-audit:
-    image: python:3.12-slim-bookworm
+    image: python:3.12.13-slim-bookworm
     depends_on: [lint]
     failure: ignore
     commands:
