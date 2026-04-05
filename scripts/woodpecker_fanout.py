@@ -35,6 +35,28 @@ def fetch_essent_secret(region: str, secret_id: str) -> dict[str, object]:
     )
     return json.loads(output)
 
+
+def parse_repo_ids(raw: str) -> dict[str, int]:
+    repo_ids: dict[str, int] = {}
+    for item in raw.split(","):
+        entry = item.strip()
+        if not entry:
+            continue
+        repo_name, sep, repo_id = entry.partition("=")
+        if not sep or not repo_name.strip() or not repo_id.strip():
+            raise SystemExit(
+                "Invalid repo id mapping. Expected comma-separated entries like "
+                "'cooneycw/voice-bot-acs=6'."
+            )
+        try:
+            repo_ids[repo_name.strip()] = int(repo_id.strip())
+        except ValueError as exc:
+            raise SystemExit(
+                f"Invalid repo id for {repo_name.strip()!r}: {repo_id.strip()!r}"
+            ) from exc
+    return repo_ids
+
+
 def api_request(
     base_url: str,
     token: str,
@@ -58,6 +80,35 @@ def repo_map(base_url: str, token: str) -> dict[str, dict[str, object]]:
     repos = api_request(base_url, token, "/api/user/repos?all=true")
     assert isinstance(repos, list)
     return {str(repo["full_name"]): repo for repo in repos}
+
+
+def resolve_repos(
+    base_url: str,
+    token: str,
+    targets: list[str],
+    configured_repo_ids: dict[str, int],
+) -> dict[str, dict[str, object]]:
+    resolved: dict[str, dict[str, object]] = {}
+    unresolved: list[str] = []
+
+    for target in targets:
+        repo_id = configured_repo_ids.get(target)
+        if repo_id is None:
+            unresolved.append(target)
+            continue
+        resolved[target] = {"full_name": target, "id": repo_id}
+
+    if not unresolved:
+        return resolved
+
+    discovered = repo_map(base_url, token)
+    for target in unresolved:
+        repo = discovered.get(target)
+        if repo is None:
+            raise SystemExit(f"Unknown Woodpecker repo: {target}")
+        resolved[target] = repo
+
+    return resolved
 
 
 def wait_for_pipeline(
@@ -94,6 +145,14 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=3600)
     parser.add_argument("--poll", type=int, default=10)
     parser.add_argument("--source", default=os.environ.get("CI_REPO", ""))
+    parser.add_argument(
+        "--repo-ids",
+        default=os.environ.get("WOODPECKER_FANOUT_REPO_IDS", ""),
+        help=(
+            "Optional comma-separated repo=id mappings to avoid "
+            "/api/user/repos discovery for known targets"
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -106,7 +165,7 @@ def main() -> int:
         raise SystemExit("Missing WOODPECKER_URL/WOODPECKER_API_TOKEN in essent-ai secret")
 
     targets = [item.strip() for item in args.targets.split(",") if item.strip()]
-    repos = repo_map(base_url, token)
+    repos = resolve_repos(base_url, token, targets, parse_repo_ids(args.repo_ids))
     current_repo = args.source.strip()
 
     triggered: list[tuple[str, int, int]] = []
