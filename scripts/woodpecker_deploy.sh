@@ -34,6 +34,10 @@ fi
 
 DEPLOY_BRANCH="${CI_COMMIT_BRANCH:-main}"
 LATEST_SHA="$(git ls-remote origin "refs/heads/$DEPLOY_BRANCH" | awk '{print $1}')"
+if [ -z "$LATEST_SHA" ]; then
+  echo "Unable to resolve latest $DEPLOY_BRANCH SHA from origin" >&2
+  exit 1
+fi
 DEPLOY_SHA="${CI_COMMIT_SHA:-$(git rev-parse HEAD)}"
 if [ "$DEPLOY_SHA" != "$LATEST_SHA" ]; then
   echo "Skipping deploy for stale commit $DEPLOY_SHA; latest $DEPLOY_BRANCH is $LATEST_SHA"

@@ -47,6 +47,10 @@ if [ -n "$NETRC_CONTENT" ]; then
       chmod 600 "$NETRC_PATH"
     '
 else
+  if [ -n "${CI:-}" ]; then
+    echo "FATAL: no .netrc found in CI; private repo fetch will fail" >&2
+    exit 1
+  fi
   echo "No .netrc found; attempting anonymous git fetch from origin"
 fi
 
