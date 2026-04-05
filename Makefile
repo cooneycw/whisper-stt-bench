@@ -3,8 +3,10 @@
        health deploy deploy-stub \
        bench bench-quick bench-report \
        secret-scan dep-audit dockerfile-lint \
-       smoke-live-components \
+       smoke-live-components shared-pipeline-hash-check \
        clean
+
+DOCKER_GUARD_MIN_FREE_GB ?= 20
 
 # --- Dependencies ---
 install:
@@ -20,20 +22,23 @@ lint:
 format:
 	uv run ruff format .
 
+shared-pipeline-hash-check:
+	python3 scripts/check_shared_pipeline_hashes.py
+
 typecheck:
 	uv run python -m compileall src tests scripts
 
 test:
 	uv run pytest -m "not gpu and not benchmark and not live" -q
 
-verify: lint test typecheck
+verify: shared-pipeline-hash-check lint test typecheck
 
 # --- Docker ---
 docker-build:
 	docker build --pull -t whisper-stt-bench:latest .
 
 docker-guard:
-	bash scripts/docker_host_guard.sh
+	DOCKER_GUARD_MIN_FREE_GB=$(DOCKER_GUARD_MIN_FREE_GB) bash scripts/docker_host_guard.sh
 
 docker-up:
 	docker compose up --build --force-recreate --remove-orphans -d

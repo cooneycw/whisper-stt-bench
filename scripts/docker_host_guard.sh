@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MIN_FREE_GB="${DOCKER_GUARD_MIN_FREE_GB:-20}"
+MIN_FREE_GB="${DOCKER_GUARD_MIN_FREE_GB:-12}"
 PRUNE_UNTIL="${DOCKER_GUARD_PRUNE_UNTIL:-168h}"
 DOCKER_ROOT="${DOCKER_GUARD_ROOT:-$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)}"
 REQUIRED_MB=$((MIN_FREE_GB * 1024))

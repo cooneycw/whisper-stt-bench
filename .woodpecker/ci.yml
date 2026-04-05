@@ -6,6 +6,11 @@ labels:
   deploy-host: proxVMvoice18
 
 steps:
+  shared-pipeline-hash:
+    image: python:3.12-slim-bookworm
+    commands:
+      - python3 scripts/check_shared_pipeline_hashes.py
+
   # --- Stage 1: Fast checks (parallel) ---
   lint:
     image: python:3.12-slim-bookworm
