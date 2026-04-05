@@ -9,6 +9,10 @@ fi
 : "${DEPLOY_SHA:?DEPLOY_SHA is required}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 HOST_PROJECTS_ROOT="$(dirname "$HOST_CANONICAL_WORKSPACE")"
+
+# Clean up orphaned netrc files from crashed deploys (>60min old)
+find "$HOST_PROJECTS_ROOT" -maxdepth 1 -name '.ci-netrc-*' -mmin +60 -delete 2>/dev/null || true
+
 NETRC_CONTENT=""
 NETRC_HOST_PATH=""
 GIT_NETRC_ARGS=()
