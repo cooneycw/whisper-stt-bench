@@ -55,6 +55,7 @@ deployment for the GPU host. The following safety guards are implemented:
 - **Canonical checkout sync** — updates `/home/cooneycw/Projects/whisper-stt-bench` to the target SHA
 - **Per-host deploy lock** — prevents overlapping deploys against the Docker daemon
 - **Docker disk guard** — prunes reclaimable Docker data before deploy if free space is low
+- **GitHub auth bootstrap** — host `~/.config/gh` mounted read-only; deploy script synthesizes `.netrc` from `gh/hosts.yml` before any `git ls-remote` or `git fetch`, failing hard if no auth source exists in CI
 - **AWS credential mount** — host `~/.aws` mounted read-only into the deploy runner
 
 ## Expectations
