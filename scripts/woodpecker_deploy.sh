@@ -31,8 +31,14 @@ COMPOSE_PROJECT_NAME=whisper-stt-bench \
 make deploy
 
 if [ "${WOODPECKER_SKIP_FANOUT:-false}" != "true" ]; then
-  python3 scripts/woodpecker_fanout.py \
+  if ! python3 scripts/woodpecker_fanout.py \
     --branch "$DEPLOY_BRANCH" \
     --source "${CI_REPO:-cooneycw/whisper-stt-bench}" \
-    --targets "cooneycw/voice-bot-acs,cooneycw/personas-service"
+    --targets "cooneycw/voice-bot-acs,cooneycw/personas-service"; then
+    if [ "${WOODPECKER_FANOUT_REQUIRED:-false}" = "true" ]; then
+      echo "fanout: failed and WOODPECKER_FANOUT_REQUIRED=true" >&2
+      exit 1
+    fi
+    echo "fanout: warning: failed; continuing because Whisper deploy is healthy" >&2
+  fi
 fi
