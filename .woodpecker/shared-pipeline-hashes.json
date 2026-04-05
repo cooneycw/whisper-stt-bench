@@ -1,6 +1,6 @@
 {
   "version": "2026-04-05.shared-pipeline-contract.v2",
-  "aggregate_sha256": "fc13c61c70b7f7483a837bf6eddf4555bc768b0e8f939740239aab9ff411eec3",
+  "aggregate_sha256": "fd14820679b66f6b14b65b1069e7e270ecf6651b632a8e87e3f78cc977228f92",
   "files": {
     "scripts/deploy_lock.sh": "7a7ffcf4c0e391671a953abcfa80ffa4d689152be28b9c2483abb5808ccf7830",
     "scripts/sync_canonical_checkout.sh": "6a4066ebdf8292abc1f7cb44d5dda33fc4dbebabcb3a73a137a5f2793907be83",
