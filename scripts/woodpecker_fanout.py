@@ -12,7 +12,6 @@ import time
 import urllib.error
 import urllib.request
 
-
 SUCCESS_STATES = {"success", "skipped"}
 RUNNING_STATES = {"pending", "running", "blocked", "created"}
 
@@ -36,10 +35,19 @@ def fetch_essent_secret(region: str, secret_id: str) -> dict[str, object]:
     )
     return json.loads(output)
 
-
-def api_request(base_url: str, token: str, path: str, method: str = "GET", body: dict[str, object] | None = None) -> object:
+def api_request(
+    base_url: str,
+    token: str,
+    path: str,
+    method: str = "GET",
+    body: dict[str, object] | None = None,
+) -> object:
     data = None if body is None else json.dumps(body).encode("utf-8")
-    request = urllib.request.Request(f"{base_url.rstrip('/')}{path}", data=data, method=method)
+    request = urllib.request.Request(
+        f"{base_url.rstrip('/')}{path}",
+        data=data,
+        method=method,
+    )
     request.add_header("Authorization", f"Bearer {token}")
     request.add_header("Content-Type", "application/json")
     with urllib.request.urlopen(request, timeout=30) as response:
@@ -52,7 +60,14 @@ def repo_map(base_url: str, token: str) -> dict[str, dict[str, object]]:
     return {str(repo["full_name"]): repo for repo in repos}
 
 
-def wait_for_pipeline(base_url: str, token: str, repo_id: int, pipeline_number: int, timeout_s: int, poll_s: int) -> tuple[str, dict[str, object]]:
+def wait_for_pipeline(
+    base_url: str,
+    token: str,
+    repo_id: int,
+    pipeline_number: int,
+    timeout_s: int,
+    poll_s: int,
+) -> tuple[str, dict[str, object]]:
     deadline = time.time() + timeout_s
     last_status = "unknown"
     while time.time() < deadline:
@@ -64,7 +79,10 @@ def wait_for_pipeline(base_url: str, token: str, repo_id: int, pipeline_number: 
         if last_status not in RUNNING_STATES:
             return last_status, payload
         time.sleep(poll_s)
-    raise TimeoutError(f"Timed out waiting for pipeline #{pipeline_number}; last status={last_status}")
+    raise TimeoutError(
+        f"Timed out waiting for pipeline #{pipeline_number}; "
+        f"last status={last_status}"
+    )
 
 
 def main() -> int:
@@ -80,7 +98,9 @@ def main() -> int:
     args = parser.parse_args()
 
     secret = fetch_essent_secret(args.region, args.secret_id)
-    base_url = str(secret.get("WOODPECKER_URL") or secret.get("WOODPECKER_HOST") or "").rstrip("/")
+    base_url = str(
+        secret.get("WOODPECKER_URL") or secret.get("WOODPECKER_HOST") or ""
+    ).rstrip("/")
     token = str(secret.get("WOODPECKER_API_TOKEN") or "")
     if not base_url or not token:
         raise SystemExit("Missing WOODPECKER_URL/WOODPECKER_API_TOKEN in essent-ai secret")
@@ -108,7 +128,13 @@ def main() -> int:
         print(f"fanout: triggering manual pipeline for {target} on {args.branch}")
         if args.dry_run:
             continue
-        payload = api_request(base_url, token, f"/api/repos/{repo_id}/pipelines", method="POST", body=body)
+        payload = api_request(
+            base_url,
+            token,
+            f"/api/repos/{repo_id}/pipelines",
+            method="POST",
+            body=body,
+        )
         assert isinstance(payload, dict)
         pipeline_number = int(payload["number"])
         triggered.append((target, repo_id, pipeline_number))
@@ -116,10 +142,20 @@ def main() -> int:
 
     for target, repo_id, pipeline_number in triggered:
         print(f"fanout: waiting for {target} pipeline #{pipeline_number}")
-        status, payload = wait_for_pipeline(base_url, token, repo_id, pipeline_number, args.timeout, args.poll)
+        status, payload = wait_for_pipeline(
+            base_url,
+            token,
+            repo_id,
+            pipeline_number,
+            args.timeout,
+            args.poll,
+        )
         if status not in SUCCESS_STATES:
             print(json.dumps(payload, indent=2))
-            raise SystemExit(f"fanout: {target} pipeline #{pipeline_number} finished with status={status}")
+            raise SystemExit(
+                f"fanout: {target} pipeline #{pipeline_number} "
+                f"finished with status={status}"
+            )
         print(f"fanout: {target} pipeline #{pipeline_number} finished with status={status}")
 
     return 0
