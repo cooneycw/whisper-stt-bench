@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import io
+from contextlib import asynccontextmanager
 from unittest.mock import patch
 
-import httpx
 import pytest
 from fastapi import Depends, FastAPI, UploadFile
+from httpx import ASGITransport, AsyncClient
 
 from whisper_bench import auth
+
+pytestmark = pytest.mark.anyio
 
 
 def _build_test_app() -> FastAPI:
@@ -34,16 +37,20 @@ def _build_test_app() -> FastAPI:
     return test_app
 
 
-def _make_client(app: FastAPI) -> httpx.AsyncClient:
-    transport = httpx.ASGITransport(app=app)
-    return httpx.AsyncClient(transport=transport, base_url="http://testserver")
+@asynccontextmanager
+async def _client(app: FastAPI):
+    """Create an async test client compatible with the installed Starlette stack."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        yield client
 
 
-@pytest.mark.asyncio
 class TestHealthEndpoint:
     async def test_health_returns_200(self):
         app = _build_test_app()
-        async with _make_client(app) as client:
+        async with _client(app) as client:
             response = await client.get("/health")
             assert response.status_code == 200
             data = response.json()
@@ -52,17 +59,16 @@ class TestHealthEndpoint:
 
     async def test_health_shows_status(self):
         app = _build_test_app()
-        async with _make_client(app) as client:
+        async with _client(app) as client:
             response = await client.get("/health")
             data = response.json()
             assert data["status"] in ("ok", "loading")
 
 
-@pytest.mark.asyncio
 class TestModelsEndpoint:
     async def test_list_models(self):
         app = _build_test_app()
-        async with _make_client(app) as client:
+        async with _client(app) as client:
             response = await client.get("/v1/models")
             assert response.status_code == 200
             models = response.json()
@@ -70,14 +76,10 @@ class TestModelsEndpoint:
             assert len(models) > 0
             assert any(m["name"] == "base" for m in models)
 
-
-@pytest.mark.asyncio
 class TestBearerAuth:
     """Bearer token authentication tests for /v1/transcribe."""
 
-    async def _upload(
-        self, client: httpx.AsyncClient, headers: dict | None = None
-    ) -> httpx.Response:
+    async def _upload(self, client: AsyncClient, headers: dict | None = None):
         """POST a dummy WAV to /v1/transcribe."""
         return await client.post(
             "/v1/transcribe",
@@ -89,14 +91,14 @@ class TestBearerAuth:
         """When no token is set, requests pass through (dev mode)."""
         with patch.object(auth, "_bearer_token", ""):
             app = _build_test_app()
-            async with _make_client(app) as client:
+            async with _client(app) as client:
                 resp = await self._upload(client)
                 assert resp.status_code == 200
 
     async def test_valid_token_allows_request(self):
         with patch.object(auth, "_bearer_token", "secret-token-123"):
             app = _build_test_app()
-            async with _make_client(app) as client:
+            async with _client(app) as client:
                 resp = await self._upload(
                     client, {"Authorization": "Bearer secret-token-123"}
                 )
@@ -105,14 +107,14 @@ class TestBearerAuth:
     async def test_missing_token_returns_401(self):
         with patch.object(auth, "_bearer_token", "secret-token-123"):
             app = _build_test_app()
-            async with _make_client(app) as client:
+            async with _client(app) as client:
                 resp = await self._upload(client)
                 assert resp.status_code == 401
 
     async def test_wrong_token_returns_401(self):
         with patch.object(auth, "_bearer_token", "secret-token-123"):
             app = _build_test_app()
-            async with _make_client(app) as client:
+            async with _client(app) as client:
                 resp = await self._upload(client, {"Authorization": "Bearer wrong"})
                 assert resp.status_code == 401
 
@@ -120,6 +122,6 @@ class TestBearerAuth:
         """Health endpoint must remain open regardless of auth config."""
         with patch.object(auth, "_bearer_token", "secret-token-123"):
             app = _build_test_app()
-            async with _make_client(app) as client:
+            async with _client(app) as client:
                 resp = await client.get("/health")
                 assert resp.status_code == 200
