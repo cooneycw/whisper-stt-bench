@@ -5,6 +5,33 @@ git config --global --add safe.directory "*"
 export HOME=/tmp/ci-home
 mkdir -p "$HOME"
 
+# --- GitHub auth bootstrap (mirrors personas-service pattern) ---
+NETRC_SOURCE="${WOODPECKER_GITHUB_NETRC_SOURCE:-/root/.netrc}"
+GH_HOSTS_SOURCE="${WOODPECKER_GITHUB_HOSTS_SOURCE:-/root/.config/gh/hosts.yml}"
+if [ -f "$NETRC_SOURCE" ] && [ ! -f "$HOME/.netrc" ]; then
+  cp "$NETRC_SOURCE" "$HOME/.netrc"
+  chmod 600 "$HOME/.netrc"
+fi
+
+if [ ! -f "$HOME/.netrc" ] && [ -f "$GH_HOSTS_SOURCE" ]; then
+  GH_USER="$(awk '/^[[:space:]]*user:/{print $2; exit}' "$GH_HOSTS_SOURCE")"
+  GH_TOKEN="$(awk '/^[[:space:]]*oauth_token:/{print $2; exit}' "$GH_HOSTS_SOURCE")"
+  if [ -n "$GH_TOKEN" ]; then
+    {
+      echo "machine github.com"
+      echo "  login ${GH_USER:-x-access-token}"
+      echo "  password $GH_TOKEN"
+    } > "$HOME/.netrc"
+    chmod 600 "$HOME/.netrc"
+  fi
+fi
+
+if [ -n "${CI:-}" ] && [ ! -f "$HOME/.netrc" ]; then
+  echo "FATAL: missing GitHub auth in CI; expected .netrc or gh hosts.yml for canonical checkout sync" >&2
+  exit 1
+fi
+# --- end GitHub auth bootstrap ---
+
 DEPLOY_BRANCH="${CI_COMMIT_BRANCH:-main}"
 LATEST_SHA="$(git ls-remote origin "refs/heads/$DEPLOY_BRANCH" | awk '{print $1}')"
 DEPLOY_SHA="${CI_COMMIT_SHA:-$(git rev-parse HEAD)}"
