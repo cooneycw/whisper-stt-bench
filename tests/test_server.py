@@ -76,7 +76,6 @@ class TestModelsEndpoint:
             assert len(models) > 0
             assert any(m["name"] == "base" for m in models)
 
-
 class TestBearerAuth:
     """Bearer token authentication tests for /v1/transcribe."""
 
