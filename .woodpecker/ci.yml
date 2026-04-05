@@ -1,6 +1,11 @@
 when:
   - event: [push, pull_request, manual]
 
+# CI steps run on proxVMvoice18 (deploy-host label), not the GPU VM.
+# This keeps the GPU VM free for actual inference workloads.
+# DEPENDENCY: If proxVMvoice18 is down, Whisper CI cannot run,
+# which blocks deploys (deploy-local.yml depends_on: ci).
+# Break-glass: SSH to the GPU VM and run `make deploy` directly.
 labels:
   platform: linux/amd64
   deploy-host: proxVMvoice18
