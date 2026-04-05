@@ -3,6 +3,7 @@ when:
 
 labels:
   platform: linux/amd64
+  deploy-host: proxVMvoice18
 
 steps:
   # --- Stage 1: Fast checks (parallel) ---
