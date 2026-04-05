@@ -19,37 +19,40 @@ These instructions apply to the whole repository.
 
 ## Deployment Gateway
 
-**voice-bot-acs is the master deployment entry point for the full stack.**
-Do not deploy whisper-stt-bench in isolation during normal operations. Instead,
-run `make deploy-all` (or `make deploy-all-stub`) from the `voice-bot-acs`
-directory — it chains whisper-stt-bench, personas-service, and voice-bot-acs
-in the correct order. The standalone `make deploy` targets here are still
-available for debugging or CI, but the preferred workflow is through
-voice-bot-acs.
+`whisper-stt-bench` owns its own production deploy on `proxVMwhisper43`. A
+push to `main` here runs CI, deploys Whisper from its canonical GPU-host
+checkout, then fans out Woodpecker deploys to `voice-bot-acs` and
+`personas-service` so the ecosystem is rebuilt on every merge.
 
 ### Multi-Repo Deployment Matrix
 
 | Repository | Woodpecker label | Deployed via | Secrets agent |
 |---|---|---|---|
-| whisper-stt-bench | `deploy-host=gpu-vm` | voice-bot-acs `deploy-all` | Yes |
-| personas-service | `deploy-host=proxVMvoice18` | voice-bot-acs `deploy-all` | Yes |
-| voice-bot-acs | `deploy-host=proxVMvoice18` | self (`deploy-all`) | Yes |
+| whisper-stt-bench | `deploy-host=gpu-vm` | own deploy workflow + sibling fanout | Yes |
+| personas-service | `deploy-host=proxVMvoice18` | own deploy workflow + sibling fanout | Yes |
+| voice-bot-acs | `deploy-host=proxVMvoice18` | own deploy workflow + sibling fanout | Yes |
 
-**Deploy order:** whisper-stt-bench -> personas-service -> voice-bot-acs
+Host ownership:
+
+- `whisper-stt-bench` -> `proxVMwhisper43`
+- `personas-service` -> `proxVMvoice18`
+- `voice-bot-acs` -> `proxVMvoice18`
 
 ### CI Deploy Safety
 
-The CI `deploy-local` workflow (`.woodpecker/deploy-local.yml`) is an ephemeral
-smoke test — it starts the Docker stack, runs a health check, and exits. It is
-NOT a production deployment. The following safety guards are implemented:
+The deploy workflow in `.woodpecker/deploy-local.yml` is a production
+deployment for the GPU host. The following safety guards are implemented:
 
 - **Stale-commit guard** — skips deploy if a newer commit has landed on main
 - **Label pinning** — `deploy-host=gpu-vm` ensures deploy runs on the GPU VM agent
-- **AWS credential injection** — `from_secret` in Woodpecker, never hardcoded
+- **Canonical checkout sync** — updates `/home/cooneycw/Projects/whisper-stt-bench` to the target SHA
+- **Per-host deploy lock** — prevents overlapping deploys against the Docker daemon
+- **Docker disk guard** — prunes reclaimable Docker data before deploy if free space is low
+- **AWS credential mount** — host `~/.aws` mounted read-only into the deploy runner
 
 ## Expectations
 
 - Keep the Whisper service behind bearer token auth in all non-dev deployments.
 - AWS Secrets Manager is the single source of truth for the bearer token (`whisper_bearer_token` key).
 - Never commit `.runtime/` files or live credentials.
-- The GPU VM Woodpecker agent (`woodpecker-agent/`) serves all three projects; coordinate agent config changes with voice-bot-acs and personas-service.
+- The GPU VM Woodpecker agent is dedicated to Whisper deploy work. Do not use it to deploy `voice-bot-acs` or `personas-service`.

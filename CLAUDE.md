@@ -34,23 +34,23 @@ make verify        # Full quality gate (lint + test + typecheck)
 
 ## Deployment Gateway
 
-**voice-bot-acs is the master deployment entry point for the full stack.**
-Do not deploy whisper-stt-bench in isolation during normal operations. Instead,
-run `make deploy-all` (or `make deploy-all-stub`) from the `voice-bot-acs`
-directory — it chains whisper-stt-bench, personas-service, and voice-bot-acs
-in the correct order. The standalone `make deploy` targets here are still
-available for debugging or CI, but the preferred workflow is through
-voice-bot-acs.
+`whisper-stt-bench` owns its own production deployment on `proxVMwhisper43`.
+Normal operations use this repo's Woodpecker deploy workflow plus sibling
+fanout, not a nested deploy from `voice-bot-acs`.
 
 ### Multi-Repo Deployment Matrix
 
 | Repository | Woodpecker label | Deployed via | Secrets agent |
 |---|---|---|---|
-| whisper-stt-bench | `deploy-host=gpu-vm` | voice-bot-acs `deploy-all` | Yes |
-| personas-service | `deploy-host=proxVMvoice18` | voice-bot-acs `deploy-all` | Yes |
-| voice-bot-acs | `deploy-host=proxVMvoice18` | self (`deploy-all`) | Yes |
+| whisper-stt-bench | `deploy-host=gpu-vm` | own deploy workflow + sibling fanout | Yes |
+| personas-service | `deploy-host=proxVMvoice18` | own deploy workflow + sibling fanout | Yes |
+| voice-bot-acs | `deploy-host=proxVMvoice18` | own deploy workflow + sibling fanout | Yes |
 
-**Deploy order:** whisper-stt-bench -> personas-service -> voice-bot-acs
+Host ownership:
+
+- `whisper-stt-bench` -> `proxVMwhisper43`
+- `personas-service` -> `proxVMvoice18`
+- `voice-bot-acs` -> `proxVMvoice18`
 
 ## Docker / Deployment
 
@@ -58,8 +58,8 @@ voice-bot-acs.
 make docker-build  # Build NVIDIA CUDA-based image
 make docker-up     # Start with GPU access
 make docker-down   # Stop
+make deploy        # Production deploy: docker-guard -> docker-up -> health
 make health        # Wait for /health endpoint
-make deploy        # docker-up + health (with secrets sidecar profile)
 make deploy-stub   # docker-up + health (no secrets sidecar)
 ```
 

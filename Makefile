@@ -1,5 +1,5 @@
 .PHONY: install dev lint format test typecheck verify \
-       docker-build docker-up docker-down docker-clean docker-logs \
+       docker-build docker-guard docker-up docker-down docker-clean docker-logs \
        health deploy deploy-stub \
        bench bench-quick bench-report \
        secret-scan dep-audit dockerfile-lint \
@@ -30,10 +30,13 @@ verify: lint test typecheck
 
 # --- Docker ---
 docker-build:
-	docker build --no-cache -t whisper-stt-bench:latest .
+	docker build --pull -t whisper-stt-bench:latest .
+
+docker-guard:
+	bash scripts/docker_host_guard.sh
 
 docker-up:
-	docker compose up --build --force-recreate -d
+	docker compose up --build --force-recreate --remove-orphans -d
 
 docker-down:
 	docker compose down
@@ -46,18 +49,23 @@ docker-logs:
 	docker compose logs -f
 
 health:
-	@echo "Waiting for /health..."
-	@for i in $$(seq 1 30); do \
-		if curl -sf http://localhost:5000/health > /dev/null 2>&1; then \
+	@echo "Waiting for container health..."
+	@CONTAINER="$${WHISPER_BENCH_CONTAINER:-whisper-stt-bench-whisper-bench-1}"; \
+	for i in $$(seq 1 45); do \
+		STATUS=$$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$$CONTAINER" 2>/dev/null || echo "missing"); \
+		if [ "$$STATUS" = "healthy" ]; then \
 			echo "Service healthy"; \
 			exit 0; \
 		fi; \
+		echo "  Attempt $$i/45: $$STATUS"; \
 		sleep 2; \
 	done; \
-	echo "Health check timed out"; exit 1
+	echo "Health check timed out. Recent logs:"; \
+	docker compose logs --tail=50; \
+	exit 1
 
 # --- Deploy ---
-deploy: docker-up health
+deploy: docker-guard docker-up health
 	@echo "Deploy (with secrets sidecar) complete."
 
 deploy-stub: docker-up health

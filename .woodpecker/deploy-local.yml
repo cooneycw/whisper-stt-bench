@@ -1,6 +1,8 @@
 when:
   - event: push
     branch: main
+  - event: manual
+    branch: main
 
 labels:
   platform: linux/amd64
@@ -11,42 +13,41 @@ depends_on:
 
 steps:
   deploy-local:
-    image: docker:27-cli
+    image: ghcr.io/cooneycw/ci-deploy:3.12
+    pull: false
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: aws_access_key_id
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: aws_secret_access_key
+      - /home/cooneycw/.aws:/home/cooneycw/.aws:ro
+      - /home/cooneycw/Projects:/home/cooneycw/Projects
     commands:
-      - apk add --no-cache bash curl git make >/dev/null
       - |
         set -euo pipefail
-
-        # Stale-commit guard — skip if a newer commit has landed on main
-        LATEST_SHA="$(git fetch origin main >/dev/null 2>&1 && git rev-parse origin/main)"
-        CURRENT_SHA="${CI_COMMIT_SHA:-$(git rev-parse HEAD)}"
-        if [ "$CURRENT_SHA" != "$LATEST_SHA" ]; then
-          echo "Skipping deploy for stale commit $CURRENT_SHA; latest main is $LATEST_SHA"
+        git config --global --add safe.directory "*"
+        export HOME=/tmp/ci-home
+        mkdir -p "$HOME"
+        DEPLOY_BRANCH="${CI_COMMIT_BRANCH:-main}"
+        LATEST_SHA="$(git ls-remote origin "refs/heads/$DEPLOY_BRANCH" | awk '{print $1}')"
+        DEPLOY_SHA="${CI_COMMIT_SHA:-$(git rev-parse HEAD)}"
+        if [ "$DEPLOY_SHA" != "$LATEST_SHA" ]; then
+          echo "Skipping deploy for stale commit $DEPLOY_SHA; latest $DEPLOY_BRANCH is $LATEST_SHA"
           exit 0
         fi
 
-        COMPOSE_PROJECT_NAME=whisper-stt-bench \
-        docker compose up --build --force-recreate -d
+        source scripts/deploy_lock.sh
+        deploy_lock_acquire
+        trap deploy_lock_release EXIT
 
-        # Health check via docker inspect (localhost inside CI container != host)
-        echo "Waiting for container health..."
-        CONTAINER="whisper-stt-bench-whisper-bench-1"
-        for i in $(seq 1 45); do
-          STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER" 2>/dev/null || echo "missing")
-          if [ "$STATUS" = "healthy" ]; then
-            echo "Service healthy"
-            exit 0
-          fi
-          echo "  Attempt $i/45: $STATUS"
-          sleep 2
-        done
-        echo "Health check timed out. Recent logs:"
-        COMPOSE_PROJECT_NAME=whisper-stt-bench docker compose logs --tail=50
-        exit 1
+        export HOST_CANONICAL_WORKSPACE="${WHISPER_STT_BENCH_HOST_WORKSPACE:-/home/cooneycw/Projects/whisper-stt-bench}"
+        export DEPLOY_SHA DEPLOY_BRANCH
+        bash scripts/sync_canonical_checkout.sh "$HOST_CANONICAL_WORKSPACE"
+        cd "$HOST_CANONICAL_WORKSPACE"
+
+        COMPOSE_PROJECT_NAME=whisper-stt-bench \
+        make deploy
+
+        if [ "${WOODPECKER_SKIP_FANOUT:-false}" != "true" ]; then
+          python3 scripts/woodpecker_fanout.py \
+            --branch "$DEPLOY_BRANCH" \
+            --source "${CI_REPO:-cooneycw/whisper-stt-bench}" \
+            --targets "cooneycw/voice-bot-acs,cooneycw/personas-service"
+        fi

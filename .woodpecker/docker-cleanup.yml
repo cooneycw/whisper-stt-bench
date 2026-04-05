@@ -1,0 +1,18 @@
+when:
+  - event: cron
+    cron: docker-cleanup
+
+labels:
+  platform: linux/amd64
+  deploy-host: gpu-vm
+
+steps:
+  cleanup:
+    image: ghcr.io/cooneycw/ci-deploy:3.12
+    pull: false
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/cooneycw/Projects:/home/cooneycw/Projects
+    commands:
+      - cd /home/cooneycw/Projects/whisper-stt-bench
+      - DOCKER_GUARD_MIN_FREE_GB=20 DOCKER_GUARD_PRUNE_UNTIL=24h bash scripts/docker_host_guard.sh
