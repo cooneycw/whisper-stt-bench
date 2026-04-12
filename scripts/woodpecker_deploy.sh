@@ -73,3 +73,6 @@ if [ "${WOODPECKER_SKIP_FANOUT:-false}" != "true" ]; then
     echo "fanout: warning: failed; continuing because Whisper deploy is healthy" >&2
   fi
 fi
+
+# Restore host-user ownership on files touched by the root CI container
+make fix-ownership

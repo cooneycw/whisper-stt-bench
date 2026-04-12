@@ -1,6 +1,6 @@
 .PHONY: install dev lint format test typecheck verify \
        docker-build docker-guard docker-up docker-down docker-clean docker-logs \
-       health deploy deploy-stub \
+       health deploy deploy-stub fix-ownership \
        bench bench-quick bench-report \
        secret-scan dep-audit dockerfile-lint \
        smoke-live-components shared-pipeline-hash-check \
@@ -135,6 +135,19 @@ smoke-live-components:
 		echo "3) Skipped — WHISPER_BENCH_BEARER_TOKEN not set"; \
 	fi; \
 	echo "Smoke test complete."
+
+# --- Ownership repair (CI runs as root; restore host-user ownership) ---
+fix-ownership:
+	@REF_OWNER=$$(stat -c '%u:%g' .git/HEAD 2>/dev/null || echo ""); \
+	if [ -z "$$REF_OWNER" ] || [ "$$REF_OWNER" = "$$(id -u):$$(id -g)" ]; then \
+		exit 0; \
+	fi; \
+	echo "Fixing ownership to $$REF_OWNER ..."; \
+	for d in .venv .runtime scripts .woodpecker; do \
+		[ -e "$$d" ] && chown -R "$$REF_OWNER" "$$d" 2>/dev/null || true; \
+	done; \
+	chown "$$REF_OWNER" . 2>/dev/null || true; \
+	echo "Ownership repaired."
 
 # --- Cleanup ---
 clean:
