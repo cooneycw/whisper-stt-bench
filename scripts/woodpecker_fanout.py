@@ -4,13 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import netrc
 import os
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
+from urllib.parse import quote
 
 SUCCESS_STATES = {"success", "skipped"}
 RUNNING_STATES = {"pending", "running", "blocked", "created"}
@@ -80,6 +84,75 @@ def repo_map(base_url: str, token: str) -> dict[str, dict[str, object]]:
     repos = api_request(base_url, token, "/api/user/repos?all=true")
     assert isinstance(repos, list)
     return {str(repo["full_name"]): repo for repo in repos}
+
+
+def load_local_manifest(repo_root: Path | None = None) -> dict[str, object]:
+    if repo_root is None:
+        repo_root = Path(__file__).resolve().parents[1]
+    manifest_path = repo_root / ".woodpecker" / "shared-pipeline-hashes.json"
+    return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def resolve_github_token() -> str | None:
+    for key in ("GITHUB_TOKEN", "GH_TOKEN"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+
+    try:
+        auth = netrc.netrc().authenticators("github.com")
+    except (FileNotFoundError, netrc.NetrcParseError):
+        return None
+
+    if auth is None:
+        return None
+    _login, _account, password = auth
+    return password or None
+
+
+def fetch_github_manifest(
+    repo_full_name: str,
+    branch: str,
+    github_token: str | None = None,
+) -> dict[str, object]:
+    owner, repo = repo_full_name.split("/", 1)
+    url = (
+        f"https://api.github.com/repos/{owner}/{repo}/contents/"
+        f".woodpecker/shared-pipeline-hashes.json?ref={quote(branch, safe='')}"
+    )
+    request = urllib.request.Request(url, method="GET")
+    request.add_header("Accept", "application/vnd.github+json")
+    if github_token:
+        request.add_header("Authorization", f"Bearer {github_token}")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+
+    if not isinstance(payload, dict):
+        raise SystemExit(f"Unexpected GitHub manifest response for {repo_full_name}")
+    encoded = payload.get("content")
+    if not isinstance(encoded, str):
+        raise SystemExit(f"Missing manifest content for {repo_full_name}")
+    decoded = base64.b64decode(encoded).decode("utf-8")
+    return json.loads(decoded)
+
+
+def assert_matching_shared_pipeline_manifest(
+    local_manifest: dict[str, object],
+    target_manifest: dict[str, object],
+    target_repo: str,
+) -> None:
+    local_aggregate = str(local_manifest.get("aggregate_sha256") or "")
+    target_aggregate = str(target_manifest.get("aggregate_sha256") or "")
+    if not local_aggregate or not target_aggregate:
+        raise SystemExit(
+            f"Missing shared pipeline aggregate for {target_repo}: "
+            f"local={bool(local_aggregate)} target={bool(target_aggregate)}"
+        )
+    if local_aggregate != target_aggregate:
+        raise SystemExit(
+            f"Shared pipeline hash mismatch with {target_repo}: "
+            f"local={local_aggregate} target={target_aggregate}"
+        )
 
 
 def resolve_repos(
@@ -167,8 +240,10 @@ def main() -> int:
     targets = [item.strip() for item in args.targets.split(",") if item.strip()]
     repos = resolve_repos(base_url, token, targets, parse_repo_ids(args.repo_ids))
     current_repo = args.source.strip()
+    local_manifest = load_local_manifest()
+    github_token = resolve_github_token()
 
-    triggered: list[tuple[str, int, int]] = []
+    planned: list[tuple[str, int]] = []
     for target in targets:
         if target == current_repo:
             print(f"fanout: skipping self target {target}")
@@ -176,7 +251,16 @@ def main() -> int:
         repo = repos.get(target)
         if repo is None:
             raise SystemExit(f"Unknown Woodpecker repo: {target}")
-        repo_id = int(repo["id"])
+        target_manifest = fetch_github_manifest(target, args.branch, github_token)
+        assert_matching_shared_pipeline_manifest(local_manifest, target_manifest, target)
+        print(
+            "fanout: shared pipeline contract matches "
+            f"{target} ({str(local_manifest['aggregate_sha256'])[:12]})"
+        )
+        planned.append((target, int(repo["id"])))
+
+    triggered: list[tuple[str, int, int]] = []
+    for target, repo_id in planned:
         body = {
             "branch": args.branch,
             "variables": {
