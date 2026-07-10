@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Woodpecker agent watchdog every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=woodpecker-watchdog.service
+
+[Install]
+WantedBy=timers.target

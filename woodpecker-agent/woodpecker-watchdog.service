@@ -1,0 +1,9 @@
+[Unit]
+Description=Woodpecker agent + CI tooling watchdog (GPU VM)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=cooneycw
+ExecStart=/home/cooneycw/Projects/whisper-stt-bench/woodpecker-agent/watchdog.sh
