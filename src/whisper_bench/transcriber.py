@@ -18,6 +18,8 @@ class Segment:
     start: float
     end: float
     text: str
+    avg_logprob: float
+    no_speech_prob: float
 
 
 @dataclass
@@ -48,20 +50,37 @@ class Transcriber:
         self.model_size = model_size
         self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
-    def transcribe(self, audio_bytes: bytes) -> TranscriptionResult:
+    def transcribe(
+        self, audio_bytes: bytes, initial_prompt: str | None = None
+    ) -> TranscriptionResult:
         """Transcribe audio bytes (WAV or raw PCM16 mono 16kHz).
 
-        Returns TranscriptionResult with text, timing, and segments.
+        When ``initial_prompt`` is provided, it biases decoding toward the
+        supplied vocabulary (e.g. wake words or registered names).
+
+        Returns TranscriptionResult with text, timing, and segments. Each
+        segment carries ``avg_logprob`` and ``no_speech_prob`` so callers can
+        discard low-confidence fragments.
         """
         audio_array = self._decode_audio(audio_bytes)
         duration_audio = len(audio_array) / 16000.0
 
         t0 = time.perf_counter()
-        segments_iter, info = self.model.transcribe(audio_array, beam_size=5)
+        segments_iter, info = self.model.transcribe(
+            audio_array, beam_size=5, initial_prompt=initial_prompt
+        )
         segments = []
         text_parts = []
         for seg in segments_iter:
-            segments.append(Segment(start=seg.start, end=seg.end, text=seg.text.strip()))
+            segments.append(
+                Segment(
+                    start=seg.start,
+                    end=seg.end,
+                    text=seg.text.strip(),
+                    avg_logprob=seg.avg_logprob,
+                    no_speech_prob=seg.no_speech_prob,
+                )
+            )
             text_parts.append(seg.text.strip())
         elapsed = time.perf_counter() - t0
 
