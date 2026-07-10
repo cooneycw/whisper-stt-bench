@@ -100,6 +100,16 @@ Pipeline runs in Woodpecker CI via `.woodpecker/`:
 - **ci.yml**: lint + secret-scan + dockerfile-lint (parallel) -> test + typecheck + dependency-audit
 - **deploy-local.yml**: main-only local Docker deploy, depends on `ci`, pinned to `deploy-host=gpu-vm` agent
 
+Both pipelines are pinned to the `deploy-host=gpu-vm` agent, so whisper
+CI/CD is fully self-contained on proxVMwhisper43 and has no dependency on
+any other host being up. (CI was previously pinned to proxVMvoice18; when
+that VM went down, whisper pipelines queued forever and blocked deploys.)
+
+Deploy steps run in the `ghcr.io/cooneycw/ci-deploy:3.12` tooling image
+(bash/git/make/python3.12/docker CLI + compose). Its Dockerfile lives in
+`infra/ci-deploy/`. Pipelines use `pull: false`, so the image must exist
+locally on the GPU VM; the agent watchdog rebuilds it if pruned.
+
 ## Deployment Target
 
 - **Host:** 192.168.7.61 (local lab GPU VM)
@@ -117,4 +127,31 @@ This agent serves all three projects on the host: whisper-stt-bench, voice-bot-a
 cd woodpecker-agent
 ./bootstrap-agent.sh          # Fetch creds from AWS SM + start agent
 docker compose logs -f        # Check agent logs
+sudo ./install-watchdog.sh    # Install systemd watchdog timer (5 min)
 ```
+
+### Agent Watchdog
+
+`woodpecker-agent/watchdog.sh` runs every 5 minutes via systemd timer
+(`woodpecker-watchdog.timer`) and auto-recovers known failure modes:
+
+1. **Agent container stopped** -> `docker start`
+2. **gRPC queue desync** (agent looks "healthy" but stops claiming jobs;
+   pipelines sit "pending" forever) -> `docker restart` (15 min cooldown)
+3. **`ci-deploy:3.12` image pruned** by `docker_host_guard.sh` disk cleanup
+   -> rebuild from `infra/ci-deploy/`
+
+## CI/CD Troubleshooting
+
+- **Pipeline stuck "pending" (yellow)**: no agent with matching labels is
+  claiming it. Check `docker logs woodpecker-agent` for
+  `queue: task not found` / `extending pipeline deadline failed`
+  (desync -> restart agent), and confirm the pipeline's `labels:` match a
+  live agent. Retrigger by pushing a new commit (an orphaned queued task
+  may never be picked up even after the agent recovers).
+- **deploy-local fails with `error from registry: denied`**: the
+  `ci-deploy:3.12` image is missing locally and the registry copy is
+  unavailable. Rebuild:
+  `docker build -t ghcr.io/cooneycw/ci-deploy:3.12 infra/ci-deploy`
+- **Break-glass deploy** (Woodpecker down entirely): SSH to the GPU VM and
+  run `make deploy` from `/home/cooneycw/Projects/whisper-stt-bench`.
