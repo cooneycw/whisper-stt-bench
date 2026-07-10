@@ -18,6 +18,10 @@ steps:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /home/cooneycw/.aws:/home/cooneycw/.aws:ro
+      # .netrc is the primary GitHub auth for canonical checkout sync +
+      # fanout; hosts.yml is a fallback but modern gh keeps the token in
+      # the system keyring, so hosts.yml alone no longer works.
+      - /home/cooneycw/.netrc:/root/.netrc:ro
       - /home/cooneycw/.config/gh:/root/.config/gh:ro
       - /home/cooneycw/Projects:/home/cooneycw/Projects
     commands:
