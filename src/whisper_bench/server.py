@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
 
-from fastapi import Depends, FastAPI, UploadFile
+from fastapi import Depends, FastAPI, Form, UploadFile
 from pydantic import BaseModel
 
 from whisper_bench.auth import load_bearer_token, verify_bearer_token
@@ -47,13 +46,21 @@ class HealthResponse(BaseModel):
     model: str
 
 
+class TranscribeSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+    avg_logprob: float
+    no_speech_prob: float
+
+
 class TranscribeResponse(BaseModel):
     text: str
     language: str
     duration_audio_s: float
     duration_process_s: float
     rtf: float
-    segments: list[dict[str, Any]]
+    segments: list[TranscribeSegment]
 
 
 @app.get("/health")
@@ -70,10 +77,18 @@ async def list_models() -> list[ModelInfo]:
 
 
 @app.post("/v1/transcribe", dependencies=[Depends(verify_bearer_token)])
-async def transcribe(file: UploadFile) -> TranscribeResponse:
+async def transcribe(
+    file: UploadFile,
+    initial_prompt: str | None = Form(
+        default=None,
+        description="Optional prompt to bias decoding toward known vocabulary.",
+    ),
+) -> TranscribeResponse:
     assert transcriber is not None, "Model not loaded"
     audio_bytes = await file.read()
-    result: TranscriptionResult = transcriber.transcribe(audio_bytes)
+    result: TranscriptionResult = transcriber.transcribe(
+        audio_bytes, initial_prompt=initial_prompt
+    )
     return TranscribeResponse(
         text=result.text,
         language=result.language,
@@ -81,6 +96,13 @@ async def transcribe(file: UploadFile) -> TranscribeResponse:
         duration_process_s=result.duration_process_s,
         rtf=result.rtf,
         segments=[
-            {"start": s.start, "end": s.end, "text": s.text} for s in result.segments
+            TranscribeSegment(
+                start=s.start,
+                end=s.end,
+                text=s.text,
+                avg_logprob=s.avg_logprob,
+                no_speech_prob=s.no_speech_prob,
+            )
+            for s in result.segments
         ],
     )

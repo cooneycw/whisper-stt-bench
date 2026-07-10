@@ -76,6 +76,88 @@ class TestModelsEndpoint:
             assert len(models) > 0
             assert any(m["name"] == "base" for m in models)
 
+class _FakeTranscriber:
+    """Records the prompt and returns a fixed result with confidence fields."""
+
+    def __init__(self):
+        self.last_prompt: str | None = "UNSET"
+
+    def transcribe(self, audio_bytes, initial_prompt=None):
+        from whisper_bench.transcriber import Segment, TranscriptionResult
+
+        self.last_prompt = initial_prompt
+        return TranscriptionResult(
+            text="hello",
+            language="en",
+            duration_audio_s=1.0,
+            duration_process_s=0.1,
+            rtf=0.1,
+            segments=[
+                Segment(
+                    start=0.0,
+                    end=1.0,
+                    text="hello",
+                    avg_logprob=-0.2,
+                    no_speech_prob=0.01,
+                )
+            ],
+        )
+
+
+class TestTranscribeContract:
+    """API contract for issue #23: initial_prompt + segment confidence fields."""
+
+    async def _post(self, client: AsyncClient, data: dict | None = None):
+        return await client.post(
+            "/v1/transcribe",
+            files={"file": ("test.wav", io.BytesIO(b"RIFF"), "audio/wav")},
+            data=data or {},
+        )
+
+    async def test_forwards_prompt_and_returns_confidence(self):
+        from whisper_bench import server
+
+        fake = _FakeTranscriber()
+        with patch.object(server, "transcriber", fake), patch.object(
+            auth, "_bearer_token", ""
+        ):
+            async with _client(server.app) as client:
+                resp = await self._post(client, {"initial_prompt": "Alice Bob"})
+                assert resp.status_code == 200
+                assert fake.last_prompt == "Alice Bob"
+                seg = resp.json()["segments"][0]
+                assert seg["avg_logprob"] == -0.2
+                assert seg["no_speech_prob"] == 0.01
+
+    async def test_without_prompt_stays_compatible(self):
+        from whisper_bench import server
+
+        fake = _FakeTranscriber()
+        with patch.object(server, "transcriber", fake), patch.object(
+            auth, "_bearer_token", ""
+        ):
+            async with _client(server.app) as client:
+                resp = await self._post(client)
+                assert resp.status_code == 200
+                assert fake.last_prompt is None
+
+    async def test_openapi_documents_new_fields(self):
+        from whisper_bench import server
+
+        schema = server.app.openapi()
+        segment = schema["components"]["schemas"]["TranscribeSegment"]["properties"]
+        assert "avg_logprob" in segment
+        assert "no_speech_prob" in segment
+        request_body = (
+            schema["paths"]["/v1/transcribe"]["post"]["requestBody"]["content"][
+                "multipart/form-data"
+            ]["schema"]["$ref"]
+        )
+        form_name = request_body.rsplit("/", 1)[-1]
+        form_props = schema["components"]["schemas"][form_name]["properties"]
+        assert "initial_prompt" in form_props
+
+
 class TestBearerAuth:
     """Bearer token authentication tests for /v1/transcribe."""
 
