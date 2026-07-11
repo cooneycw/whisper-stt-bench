@@ -137,16 +137,16 @@ smoke-live-components:
 	echo "Smoke test complete."
 
 # --- Ownership repair (CI runs as root; restore host-user ownership) ---
+# Key off the repo root DIRECTORY owner, not .git/HEAD: the root-run deploy
+# rewrites .git/HEAD (root-owned), which made the old heuristic conclude
+# "nothing to fix" and leave root-owned files (uv.lock, .git objects) behind.
 fix-ownership:
-	@REF_OWNER=$$(stat -c '%u:%g' .git/HEAD 2>/dev/null || echo ""); \
+	@REF_OWNER=$$(stat -c '%u:%g' . 2>/dev/null || echo ""); \
 	if [ -z "$$REF_OWNER" ] || [ "$$REF_OWNER" = "$$(id -u):$$(id -g)" ]; then \
 		exit 0; \
 	fi; \
 	echo "Fixing ownership to $$REF_OWNER ..."; \
-	for d in .venv .runtime scripts .woodpecker; do \
-		[ -e "$$d" ] && chown -R "$$REF_OWNER" "$$d" 2>/dev/null || true; \
-	done; \
-	chown "$$REF_OWNER" . 2>/dev/null || true; \
+	chown -R "$$REF_OWNER" . 2>/dev/null || true; \
 	echo "Ownership repaired."
 
 # --- Cleanup ---
