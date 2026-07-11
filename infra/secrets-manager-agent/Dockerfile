@@ -23,5 +23,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /build/src/target/release/aws_secretsmanager_agent /usr/local/bin/secrets-manager-agent
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-ENTRYPOINT ["/usr/local/bin/secrets-manager-agent"]
+# entrypoint.sh generates the SSRF token file into the shared volume and
+# exports AWS_TOKEN before exec'ing the agent (the agent refuses to start
+# without an SSRF token source).
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
